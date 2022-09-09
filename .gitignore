@@ -1,5 +1,4 @@
 /cuda/
-countResults.txt
-optimalLayout.txt
+*.txt
 *.svg
 /.vscode/

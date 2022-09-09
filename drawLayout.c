@@ -226,10 +226,11 @@ int main(void)
     setlocale(LC_CTYPE,"en_US.UTF-8");
     wchar_t layout[43]; // = L"d[u6n'hs8tr7aiwlygbecqfojvpx12-=]m09k;34z5";
     double effort;
+    int number;
     FILE *layoutFP;
     FILE *fp;
     layoutFP = fopen("optimalLayout.txt", "r");
-    fwscanf(layoutFP, L"%42ls: %.2f", layout, effort);
+    fwscanf(layoutFP, L"%3d | %42ls: %.2f", &number, layout, effort);
     fclose(fopen("newtry-keyboard.svg", "w"));
     fp = fopen("newtry-keyboard.svg", "a");
     drawKeyboard(fp);

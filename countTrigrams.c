@@ -3,34 +3,27 @@
 #include <locale.h>
 #include <stdlib.h>
 
+#define ALPHABET_LENGTH 42
+#define TRIGRAMS_TO_WRITE 3000
+
 const wchar_t *allLetters = L"аәбвгғдеёжзийкқлмнңоөпрстуұүфхһцчшщъыіьэюяАӘБВГҒДЕЁЖЗИЙКҚЛМНҢОӨПРСТУҰҮФХҺЦЧШЩЪЫІЬЭЮЯ";
-const int ALPHABET_LENGTH = 42;
-const int TRIGRAMS_TO_WRITE = 1000;
 int trigramIndex = 0;
 
-typedef struct _TrigramWithCount_
+typedef struct TrigramWithCount
 {
     wchar_t trigram[4];
     unsigned int count;
-}TrigramWithCount;
+} TrigramWithCount;
 
-TrigramWithCount stats[74090];
+TrigramWithCount stats[71000];
 
-int comparator(const void *v1, const void *v2)
+int compare(const void *v1, const void *v2)
 {
     const TrigramWithCount *p1 = (TrigramWithCount *)v1;
     const TrigramWithCount *p2 = (TrigramWithCount *)v2;
-    if (p1->count < p2->count)
-        return 1;
-    else if (p1->count > p2->count)
-        return -1;
-    else
-        return 0;
-}
-
-int areValidLetters(wchar_t first, wchar_t second, wchar_t third)
-{
-    return (wcschr(allLetters, first) && wcschr(allLetters, second) && wcschr(allLetters, third));
+    if (p1->count < p2->count) return 1;
+    else if (p1->count > p2->count) return -1;
+    else return 0;
 }
 
 wchar_t toLowerCase(wchar_t letter)
@@ -52,33 +45,38 @@ void addToStats(wchar_t *trigram)
             wcscpy(stats[i + 1].trigram, trigram);
             stats[i + 1].count = 1;
             trigramIndex++;
+            break;
         }
     }
 }
 
 int main()
 {
+    setlocale(LC_CTYPE,"en_US.UTF-8");
     FILE *pFile;
     FILE *destFile;
-    wchar_t currentChar;
-    
-    setlocale(LC_CTYPE,"en_US.UTF-8");
     pFile = fopen("sample.txt", "r");
     destFile = fopen("countResults.txt", "w");
-    wchar_t first, second, third;
-    wchar_t currentTrigram[4];
+
+    wchar_t currentChar = L'\0';
+    wchar_t first = L'!';
+    wchar_t second = L'!';
+    wchar_t third = L'!';
+    wchar_t currentTrigram[4] = {L'\0'};
     while((currentChar = fgetwc(pFile)) != WEOF)
     {
-        if(areValidLetters(first, second, third) == 0)
+        if((wcschr(allLetters, first) != NULL) && (wcschr(allLetters, second) != NULL) && (wcschr(allLetters, third) != NULL))
         {
-            wchar_t currentTrigram[4] = {toLowerCase(first), toLowerCase(second), toLowerCase(third), L'\0'};
+            currentTrigram[0] = toLowerCase(first);
+            currentTrigram[1] = toLowerCase(second);
+            currentTrigram[2] = toLowerCase(third);
             addToStats(currentTrigram);
         }
         first = second;
         second = third;
         third = currentChar;
     };
-    qsort(stats, trigramIndex + 1, sizeof(TrigramWithCount), comparator);
+    qsort(stats, trigramIndex + 1, sizeof(TrigramWithCount), compare);
     for(int i = 0; i < TRIGRAMS_TO_WRITE; i++)
     {
         fwprintf(destFile, L"%ls: %d\n", stats[i].trigram, stats[i].count);
