@@ -211,7 +211,6 @@ void calcAllLayoutEffortsForTrigram()
 void assignTrigrams(char *resultLayout)
 {
     setlocale(LC_CTYPE,"en_US.UTF-8");
-    getStats();
     for(int i=0;i<ANALYZEDTRIGRAMS;i++)
     {
         // break if all positions are set
@@ -277,7 +276,7 @@ int main()
 {
     setlocale(LC_CTYPE,"en_US.UTF-8");
     char resultLayout[ALPHABET_LENGTH+1];
-    for(int n=0;n<ALPHABET_LENGTH;n++) resultLayout[n] = L'!';
+    for(int n=0;n<ALPHABET_LENGTH;n++) resultLayout[n] = '!';
     getStats();
     calcAllLayoutEffortsForTrigram();
     assignTrigrams(resultLayout);
