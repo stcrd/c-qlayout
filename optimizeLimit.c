@@ -1,14 +1,18 @@
 #include <stdio.h>
 #include <wchar.h>
 #include <string.h>
+#include <time.h>
+#include <stdlib.h>
 #include <locale.h>
 #include <math.h>
 #include <stdbool.h>
 #include <bsd/stdlib.h>
 
+#define LIMIT 3.73000
 #define ALPHABET_LENGTH 42
-#define ANALYZEDTRIGRAMS 3000
-#define ALL_POSSIBLE_TRIGRAM_LAYOUTS 74088 // 42*42*42
+#define PARALLELRUNS 1
+#define ANALYZEDTRIGRAMS 1000
+// #define ALL_POSSIBLE_TRIGRAM_LAYOUTS 74088 // 42*42*42
 #define MAX_TRIGRAM_INDEX 220454
 
 const wchar_t alphabet[] = L"аәбвгғдеёжзийкқлмнңоөпрстуұүфхһцчшщъыіьэюя";
@@ -21,7 +25,7 @@ const char allPositions[] = "1234567890-=qwertyuiop[]asdfghjkl;'zxcvbnm";
 // bke = baseline key effort
 // rows: 1.0 = number row; 2.0 = top row; 3.0 = home row; 4.0 = bottom row
 // hands: 1.0 = left; 2.0 = right
-// fingers: 0.1 = left pinky; 1.0 = left ring; 2.0 = left middle; 3.0 = left first;
+// fingers: 0.0 = left pinky; 1.0 = left ring; 2.0 = left middle; 3.0 = left first;
 // fingers: 6.0 = left first; 7.0 = left middle; 8.0 = left ring; 9.0 = left pinky;
 
 // order of factors in the factor array: pr, pf, bke, row, hand, finger
@@ -167,16 +171,16 @@ typedef struct TrigramEffort
     char positionTrigram[4];
 } TrigramEffort;
 
-int compare(const void *v1, const void *v2)
-{
-    const TrigramEffort *p1 = (TrigramEffort *)v1;
-    const TrigramEffort *p2 = (TrigramEffort *)v2;
-    if (p1->effort > p2->effort) return 1;
-    else if (p1->effort < p2->effort) return -1;
-    else return 0;
-}
+// int compare(const void *v1, const void *v2)
+// {
+//     const TrigramEffort *p1 = (TrigramEffort *)v1;
+//     const TrigramEffort *p2 = (TrigramEffort *)v2;
+//     if (p1->effort > p2->effort) return 1;
+//     else if (p1->effort < p2->effort) return -1;
+//     else return 0;
+// }
 
-TrigramEffort allTrigramEfforts[MAX_TRIGRAM_INDEX];
+TrigramEffort preCalcEfforts[MAX_TRIGRAM_INDEX];
 
 void calcAllLayoutEffortsForTrigram()
 {
@@ -184,7 +188,7 @@ void calcAllLayoutEffortsForTrigram()
     int i, j, k;
     int index = 0;
     double currentEffort;
-    FILE *fp = fopen("allTrigramEfforts.txt", "w");
+    // FILE *fp = fopen("preCalcEfforts.txt", "w");
     for(i=0;i<42;i++)
     {
         for(j=0;j<42;j++)
@@ -195,62 +199,43 @@ void calcAllLayoutEffortsForTrigram()
                 char currentPositionTrigram[] = {allPositions[i], allPositions[j], allPositions[k], '\0'};
                 currentEffort = calcTrigramTE(currentPositionIndices);
                 index = allPositions[i] * 42 * 42 + allPositions[j] * 42 + allPositions[k];
-                allTrigramEfforts[index].effort = currentEffort;
-                strcpy(allTrigramEfforts[index].positionTrigram, currentPositionTrigram);
+                preCalcEfforts[index].effort = currentEffort;
+                strcpy(preCalcEfforts[index].positionTrigram, currentPositionTrigram);
             }
         }
     }
-    qsort(allTrigramEfforts, ALL_POSSIBLE_TRIGRAM_LAYOUTS, sizeof(TrigramEffort), compare);
-    fprintf(fp, "Index   |   Effort  |  Positions\n------------------------------\n");
-    for(int n=0;n<MAX_TRIGRAM_INDEX;n++)
-    {
-        fprintf(fp, "%6d  |  %s  |  %.4f\n", n, allTrigramEfforts[n].positionTrigram, allTrigramEfforts[n].effort);
-    }
-    fclose(fp);
+    // qsort(preCalcEfforts, ALL_POSSIBLE_TRIGRAM_LAYOUTS, sizeof(TrigramEffort), compare);
+    // fprintf(fp, "Index   |   Effort  |  Positions\n------------------------------\n");
+    // for(int n=0;n<MAX_TRIGRAM_INDEX;n++)
+    // {
+    //     fprintf(fp, "%6d  |  %s  |  %.4f\n", n, preCalcEfforts[n].positionTrigram, preCalcEfforts[n].effort);
+    // }
+    // fclose(fp);
 }
 
-void assignTrigrams(char *resultLayout)
+char * generateRandomLayout(char *layout)
 {
-    setlocale(LC_CTYPE,"en_US.UTF-8");
-    for(int i=0;i<ANALYZEDTRIGRAMS;i++)
+    int lng = ALPHABET_LENGTH;
+    char positionsLeft[] = "1234567890-=qwertyuiop[]asdfghjkl;'zxcvbnm";
+    for(int i=0;i<ALPHABET_LENGTH;i++)
     {
-        // break if all positions are set
-        if(strchr(resultLayout, L'!') == NULL) break;
-        char searchedPositions[4];
-        for(int j=0;j<ALPHABET_LENGTH;j++)
-        {
-            for(int t=0;t<3;t++)
-            {
-                if(stats[i].kazTrigram[t] == alphabet[j]) searchedPositions[t] = resultLayout[j];
-            }
-        }
-        for(int k=0;k<ALL_POSSIBLE_TRIGRAM_LAYOUTS;k++)
-        {
-            // if not already assigned, then any position not already taken
-            // and if already assigned, then only the assigned position
-            // order of the positions matters
-            bool criterion1 = searchedPositions[0] == L'!' ?
-                (strchr(resultLayout, allTrigramEfforts[k].positionTrigram[0]) == NULL)
-                : (searchedPositions[0] == allTrigramEfforts[k].positionTrigram[0]);
-            bool criterion2 = searchedPositions[1] == L'!' ?
-                (strchr(resultLayout, allTrigramEfforts[k].positionTrigram[1]) == NULL)
-                : (searchedPositions[1] == allTrigramEfforts[k].positionTrigram[1]);
-            bool criterion3 = searchedPositions[2] == L'!' ?
-                (strchr(resultLayout, allTrigramEfforts[k].positionTrigram[2]) == NULL)
-                : (searchedPositions[2] == allTrigramEfforts[k].positionTrigram[2]);
-            bool criterion4 = ((stats[i].kazTrigram[0] != stats[i].kazTrigram[1]) && (stats[i].kazTrigram[1] != stats[i].kazTrigram[2])) ?
-                ((allTrigramEfforts[k].positionTrigram[0] != allTrigramEfforts[k].positionTrigram[1])
-                && (allTrigramEfforts[k].positionTrigram[1] != allTrigramEfforts[k].positionTrigram[2]))
-                : true;
-            // when all of the criteria above are met, only then assign the trigram to positions on the layout
-            if(criterion1 && criterion2 && criterion3 && criterion4)
-            {
-                for(int m=0;m<3;m++) resultLayout[(wcschr(alphabet, stats[i].kazTrigram[m]) - alphabet)] = allTrigramEfforts[k].positionTrigram[m];
-                break;
-            }
-        }
+        int r = arc4random_uniform(lng);
+        layout[i] = positionsLeft[r];
+        for(int j=r+1;j<lng && r != lng - 1;j++) positionsLeft[j-1] = positionsLeft[j];
+        lng--;
     }
-    printf("Result Layout: %s\n", resultLayout);
+    return layout;
+}
+
+char * generateNewLayout(char pLayout[])
+{
+    char tmp;
+    int index1 = arc4random_uniform(ALPHABET_LENGTH);
+    int index2 = arc4random_uniform(ALPHABET_LENGTH);
+    tmp = pLayout[index1];
+    pLayout[index1] = pLayout[index2];
+    pLayout[index2] = tmp;
+    return pLayout;
 }
 
 double calcLayoutEffort(char *layout)
@@ -258,30 +243,106 @@ double calcLayoutEffort(char *layout)
     double result = 0.0;
     int totalTrigrams = 0;
     double trigramTE;
-    int trigramIndices[3];
+    char first, second, third;
+    int preCalcIndex;
     
-    for(int i=0;i<ANALYZEDTRIGRAMS;i++)
+    for(int n=0;n<ANALYZEDTRIGRAMS;n++)
     {
-        for(int j=0;j<3;j++)
-        {
-            char engLetter = layout[wcschr(alphabet, stats[i].kazTrigram[j]) - alphabet];
-            trigramIndices[j] = strchr(allPositions, engLetter) - allPositions;
-        }
-        totalTrigrams += stats[i].count;
-        trigramTE = calcTrigramTE(trigramIndices);
-        result += trigramTE * stats[i].count;
+        totalTrigrams += stats[n].count;
+        first = layout[(wcschr(alphabet, stats[n].kazTrigram[0]) - alphabet)];
+        second = layout[(wcschr(alphabet, stats[n].kazTrigram[1]) - alphabet)];
+        third = layout[(wcschr(alphabet, stats[n].kazTrigram[2]) - alphabet)];
+        preCalcIndex = first * 42 * 42 + second * 42 + third;
+        trigramTE = preCalcEfforts[preCalcIndex].effort;
+        result += trigramTE * stats[n].count;
     }
     return result / totalTrigrams;
 }
+
+typedef struct OptimalLayout
+{
+    char bestLayout[43];
+    double bestEffort;
+} OptimalLayout;
+
+OptimalLayout findOptimalLayout(char *startingLayout)
+{
+    char emptyLayout[ALPHABET_LENGTH + 1] = {L'0'};
+    // Optimization parameters
+    const int p0 = 1, temp = 10, cooling = 10, target = 2.0;
+    int cycles = 0, attempts = 0;
+    double epsilon = 0.1;
+    char bestLayout[43], prevLayout[43], tempLayout[43];
+    strcpy(bestLayout, startingLayout);
+    double bestEffort = calcLayoutEffort(bestLayout);
+    strcpy(prevLayout, bestLayout);
+    double prevEffort = bestEffort;
+    char *newLayout;
+    double t0 = temp; // temp - const declared in the beginning of the file
+    while(fabs(bestEffort - target) > epsilon)
+    {
+        if(attempts > 1000) break;
+        strcpy(tempLayout, prevLayout);
+        if(cycles > 10000)
+        {
+            newLayout = generateRandomLayout(emptyLayout);
+            cycles = 0;
+            attempts++;
+        }
+        else
+        {
+            newLayout = generateNewLayout(tempLayout);
+            cycles++;
+        }
+        double newEffort = calcLayoutEffort(newLayout);
+        double dE = newEffort - prevEffort;
+        // double ti = t0 * exp((-i * cooling));
+        // double pi = p0 * exp(-dE / ti);
+        // t0 = ti;
+        double r = arc4random() / (double) UINT32_MAX;
+        // if(r < pi)
+        // {
+            if(newEffort < bestEffort)
+            {
+                strcpy(bestLayout, newLayout);
+                bestEffort = newEffort;
+            } else
+            {
+                prevEffort = newEffort;
+            }
+            strcpy(prevLayout, newLayout);
+        // } else {
+        //     continue;
+        // }
+        cycles++;
+    }
+    OptimalLayout result;
+    strcpy(result.bestLayout, bestLayout);
+    result.bestEffort = bestEffort;
+    printf("Cycles: %d\n", cycles);
+    return result;
+}
+
 int main()
 {
-    // setlocale(LC_CTYPE,"en_US.UTF-8");
-    // char resultLayout[ALPHABET_LENGTH+1];
-    // for(int n=0;n<ALPHABET_LENGTH;n++) resultLayout[n] = '!';
+    setlocale(LC_CTYPE,"en_US.UTF-8");
     getStats();
     calcAllLayoutEffortsForTrigram();
-    // assignTrigrams(resultLayout);
-    // double linearEffort = calcLayoutEffort(resultLayout);
-    // printf("Linearly optimized effort: %.2f\n", linearEffort);
+    char randomLayouts[PARALLELRUNS][ALPHABET_LENGTH+1];
+    char emptyLayout[ALPHABET_LENGTH + 1] = {L'0'};
+    OptimalLayout optimalLayouts[PARALLELRUNS];
+    fclose(fopen("optimalLayout.txt", "w"));
+    FILE* fp = fopen("optimalLayout.txt", "a");
+    for(int i=0;i<PARALLELRUNS;i++)
+    {
+        // wprintf(L"Entered the cycle\n");
+        strcpy(randomLayouts[i], generateRandomLayout(emptyLayout));
+        // wprintf(L"Generated a random layout\n");
+        optimalLayouts[i] = findOptimalLayout(randomLayouts[i]);
+        // wprintf(L"Found the optimal layout\n");
+        fprintf(fp, "%03d | %s: %.2f\n", i, optimalLayouts[i].bestLayout, optimalLayouts[i].bestEffort);
+        // wprintf(L"Completed the current cycle\n");
+    }
+    fclose(fp);
     exit(0);
 }

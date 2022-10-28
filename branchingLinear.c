@@ -9,7 +9,7 @@
 #define ALPHABET_LENGTH 42
 #define ANALYZEDTRIGRAMS 3000
 #define ALL_POSSIBLE_TRIGRAM_LAYOUTS 74088 // 42*42*42
-#define MAX_TRIGRAM_INDEX 220454
+#define ALL_LAYOUTS 10000
 
 const wchar_t alphabet[] = L"аәбвгғдеёжзийкқлмнңоөпрстуұүфхһцчшщъыіьэюя";
 const char allPositions[] = "1234567890-=qwertyuiop[]asdfghjkl;'zxcvbnm";
@@ -176,7 +176,7 @@ int compare(const void *v1, const void *v2)
     else return 0;
 }
 
-TrigramEffort allTrigramEfforts[MAX_TRIGRAM_INDEX];
+TrigramEffort allTrigramEfforts[ALL_POSSIBLE_TRIGRAM_LAYOUTS];
 
 void calcAllLayoutEffortsForTrigram()
 {
@@ -194,63 +194,88 @@ void calcAllLayoutEffortsForTrigram()
                 int currentPositionIndices[] = {i, j, k};
                 char currentPositionTrigram[] = {allPositions[i], allPositions[j], allPositions[k], '\0'};
                 currentEffort = calcTrigramTE(currentPositionIndices);
-                index = allPositions[i] * 42 * 42 + allPositions[j] * 42 + allPositions[k];
                 allTrigramEfforts[index].effort = currentEffort;
                 strcpy(allTrigramEfforts[index].positionTrigram, currentPositionTrigram);
+                index++;
             }
         }
     }
     qsort(allTrigramEfforts, ALL_POSSIBLE_TRIGRAM_LAYOUTS, sizeof(TrigramEffort), compare);
-    fprintf(fp, "Index   |   Effort  |  Positions\n------------------------------\n");
-    for(int n=0;n<MAX_TRIGRAM_INDEX;n++)
+    fprintf(fp, "Effort  |  Positions\n------------------------------\n");
+    for(int n=0;n<ALL_POSSIBLE_TRIGRAM_LAYOUTS;n++)
     {
-        fprintf(fp, "%6d  |  %s  |  %.4f\n", n, allTrigramEfforts[n].positionTrigram, allTrigramEfforts[n].effort);
+        fprintf(fp, "%.4f  |  %s\n", allTrigramEfforts[n].effort, allTrigramEfforts[n].positionTrigram);
     }
     fclose(fp);
 }
 
-void assignTrigrams(char *resultLayout)
+void assignTrigrams(int m, int n, char resultLayouts[][n])
 {
     setlocale(LC_CTYPE,"en_US.UTF-8");
-    for(int i=0;i<ANALYZEDTRIGRAMS;i++)
+    getStats();
+    for(int p=0;p<m;p++)
     {
-        // break if all positions are set
-        if(strchr(resultLayout, L'!') == NULL) break;
-        char searchedPositions[4];
-        for(int j=0;j<ALPHABET_LENGTH;j++)
+        int count = 0;
+        int range = 0;
+        for(int i=0;i<ANALYZEDTRIGRAMS;i++)
         {
-            for(int t=0;t<3;t++)
+            // break if all positions are set
+            if(strchr(resultLayouts[p], L'!') == NULL) break;
+            char searchedPositions[4];
+            for(int j=0;j<n-1;j++)
             {
-                if(stats[i].kazTrigram[t] == alphabet[j]) searchedPositions[t] = resultLayout[j];
+                for(int t=0;t<3;t++)
+                {
+                    if(stats[i].kazTrigram[t] == alphabet[j]) searchedPositions[t] = resultLayouts[p][j];
+                }
+            }
+            for(int r=0;r<range;r++)
+            {
+                for(int k=0;k<ALL_POSSIBLE_TRIGRAM_LAYOUTS;k++)
+                {
+                    // if not already assigned, then any position not already taken
+                    // and if already assigned, then only the assigned position
+                    // order of the positions matters
+                    int index = k;
+                    double currentEffort = allTrigramEfforts[k].effort;
+                    while(allTrigramEfforts[index].effort == currentEffort) index++;
+                    range = index - k;
+                    
+                    bool criterion1 = searchedPositions[0] == L'!' ?
+                        (strchr(resultLayouts[p+r], allTrigramEfforts[k].positionTrigram[0]) == NULL)
+                        : (searchedPositions[0] == allTrigramEfforts[k].positionTrigram[0]);
+                    bool criterion2 = searchedPositions[1] == L'!' ?
+                        (strchr(resultLayouts[p+r], allTrigramEfforts[k].positionTrigram[1]) == NULL)
+                        : (searchedPositions[1] == allTrigramEfforts[k].positionTrigram[1]);
+                    bool criterion3 = searchedPositions[2] == L'!' ?
+                        (strchr(resultLayouts[p+r], allTrigramEfforts[k].positionTrigram[2]) == NULL)
+                        : (searchedPositions[2] == allTrigramEfforts[k].positionTrigram[2]);
+                    bool criterion4 = ((stats[i].kazTrigram[0] != stats[i].kazTrigram[1]) && (stats[i].kazTrigram[1] != stats[i].kazTrigram[2])) ?
+                        ((allTrigramEfforts[k].positionTrigram[0] != allTrigramEfforts[k].positionTrigram[1])
+                        && (allTrigramEfforts[k].positionTrigram[1] != allTrigramEfforts[k].positionTrigram[2]))
+                        : true;
+                    // when all of the criteria above are met, only then assign the trigram to positions on the layout
+                    if(criterion1 && criterion2 && criterion3 && criterion4)
+                    {
+                        if(p+r == 10)
+                        {   
+                            k = ALL_POSSIBLE_TRIGRAM_LAYOUTS;
+                            i = ANALYZEDTRIGRAMS;
+                            p = m;
+                            break;
+                        }
+                        for(int m=0;m<3;m++) resultLayouts[p+r][(wcschr(alphabet, stats[i].kazTrigram[m]) - alphabet)] = allTrigramEfforts[k].positionTrigram[m];
+                        break;
+                    }
+                    k = index;
+                }
             }
         }
-        for(int k=0;k<ALL_POSSIBLE_TRIGRAM_LAYOUTS;k++)
-        {
-            // if not already assigned, then any position not already taken
-            // and if already assigned, then only the assigned position
-            // order of the positions matters
-            bool criterion1 = searchedPositions[0] == L'!' ?
-                (strchr(resultLayout, allTrigramEfforts[k].positionTrigram[0]) == NULL)
-                : (searchedPositions[0] == allTrigramEfforts[k].positionTrigram[0]);
-            bool criterion2 = searchedPositions[1] == L'!' ?
-                (strchr(resultLayout, allTrigramEfforts[k].positionTrigram[1]) == NULL)
-                : (searchedPositions[1] == allTrigramEfforts[k].positionTrigram[1]);
-            bool criterion3 = searchedPositions[2] == L'!' ?
-                (strchr(resultLayout, allTrigramEfforts[k].positionTrigram[2]) == NULL)
-                : (searchedPositions[2] == allTrigramEfforts[k].positionTrigram[2]);
-            bool criterion4 = ((stats[i].kazTrigram[0] != stats[i].kazTrigram[1]) && (stats[i].kazTrigram[1] != stats[i].kazTrigram[2])) ?
-                ((allTrigramEfforts[k].positionTrigram[0] != allTrigramEfforts[k].positionTrigram[1])
-                && (allTrigramEfforts[k].positionTrigram[1] != allTrigramEfforts[k].positionTrigram[2]))
-                : true;
-            // when all of the criteria above are met, only then assign the trigram to positions on the layout
-            if(criterion1 && criterion2 && criterion3 && criterion4)
-            {
-                for(int m=0;m<3;m++) resultLayout[(wcschr(alphabet, stats[i].kazTrigram[m]) - alphabet)] = allTrigramEfforts[k].positionTrigram[m];
-                break;
-            }
-        }
+        count++;
+        printf("Count: %d | Layout: %s\n", p+r, resultLayouts[p+r]);
+        
     }
-    printf("Result Layout: %s\n", resultLayout);
+    for(int i=0;i<10;i++) printf("Result Layout: %s\n", resultLayouts[i]);
 }
 
 double calcLayoutEffort(char *layout)
@@ -275,13 +300,17 @@ double calcLayoutEffort(char *layout)
 }
 int main()
 {
-    // setlocale(LC_CTYPE,"en_US.UTF-8");
-    // char resultLayout[ALPHABET_LENGTH+1];
-    // for(int n=0;n<ALPHABET_LENGTH;n++) resultLayout[n] = '!';
+    setlocale(LC_CTYPE,"en_US.UTF-8");
+    char resultLayouts[ALL_LAYOUTS][ALPHABET_LENGTH+1];
+    for(int n=0;n<ALL_LAYOUTS;n++)
+    {
+        for(int q=0;q<ALPHABET_LENGTH;q++) resultLayouts[n][q] = '!';
+        resultLayouts[n][42] = '\0';
+    }
     getStats();
     calcAllLayoutEffortsForTrigram();
-    // assignTrigrams(resultLayout);
-    // double linearEffort = calcLayoutEffort(resultLayout);
-    // printf("Linearly optimized effort: %.2f\n", linearEffort);
+    assignTrigrams(ALL_LAYOUTS, ALPHABET_LENGTH+1, resultLayouts);
+    double linearEffort = calcLayoutEffort(resultLayouts[0]);
+    printf("Linearly optimized effort: %.2f\n", linearEffort);
     exit(0);
 }
